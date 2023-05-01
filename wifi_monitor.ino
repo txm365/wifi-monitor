@@ -34,8 +34,8 @@ IOTAppStory IAS(COMPDATE, MODEBUTTON);                      // Initialize IotApp
 
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
-#include <PubSubClient.h>
-#include <ThingSpeak.h>
+#include "ThingSpeak.h" // always include thingspeak header file after other header files and custom macros
+
 
 #include "DHT.h"
 
@@ -44,8 +44,7 @@ IOTAppStory IAS(COMPDATE, MODEBUTTON);                      // Initialize IotApp
 #define DHTTYPE DHT11   // DHT 11
 DHT dht(DHTPIN, DHTTYPE);
 
-unsigned long myChannel = 1;
-const char * myWriteAPIKey = "OSFQWQOX6TEYE6GN";
+
 
 // ================================================ EXAMPLE VARS =========================================
 // used in this example to print variables every 10 seconds
@@ -69,7 +68,10 @@ char* updInt      = "60";
 char* ledPin      = "2";
 char* timeZone    = "Pretoria";
 
+unsigned long flashtimer = 0;
 int i = 0;
+int temp = 0;
+int hum = 0;
 const char* serverName = "http://gwakwani.rf.gd/post-esp-data.php?";
 // Keep this API Key value to be compatible with the PHP code provided in the project page. 
 // If you change the apiKeyValue value, the PHP file /post-esp-data.php also needs to have the same key 
@@ -78,20 +80,11 @@ String apiKeyValue = "tPmAT5Ab3j7F9";
 String sensorName = "DHT11";
 String sensorLocation = "Gwakwani";
 
+unsigned long CHANNEL_ID = 2108346;
+const char * CHANNEL_API_KEY = "M9JMDXC9C41N37QX";
 
-// MQTT Broker
-const char *mqtt_broker = "broker.emqx.io";
-//Publishing Topics
-const char *displayLogs = "txm365/esp32/wifimonitor/logs";
-//Subscription topics
-//const char *fan_ctrl_tpc_dev_sub = "";
 
-const char *mqtt_username = "emqx";
-const char *mqtt_password = "public";
-const int mqtt_port = 1883;
-
-WiFiClient espClient;
-PubSubClient client(espClient);
+WiFiClient client;
 
 
 // ================================================ SETUP ================================================
@@ -201,45 +194,15 @@ void setup() {
 
   //-------- Your Setup starts from here ---------------
     //dht.begin();
-    pinMode(LED_BUILTIN, OUTPUT);
-      
-         //connecting to a mqtt broker
-       client.setServer(mqtt_broker, mqtt_port);
-       client.setCallback(callback);
-       while (!client.connected()) {
-           String client_id = "esp32-client-txm365";
-           client_id += String(WiFi.macAddress());
-           Serial.printf("\nThe client %s connects to the public mqtt broker\n", client_id.c_str());
-           if (client.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
-               Serial.println("\nPublic emqx mqtt broker connected");
-               client.publish(displayLogs, "System Online...");
-           } else {
-               Serial.print("failed with state ");
-               Serial.print(client.state());
-               delay(2000);
-           }
-       }
-
+        pinMode(LED_BUILTIN, OUTPUT);
+    
+        //Start ThingSpeak   
+       ThingSpeak.begin(client);
+        //Initialise random seed
+      randomSeed(analogRead(16));
 }
 
-void callback(char *topic, byte *payload, unsigned int length) {
-     
-       /*if(payload[0] =='0'){
-        Serial.println("Fan: OFF");
-        digitalWrite(fan, LOW);
-        fan_Status = false;
-        client.publish(fan_ctrl_tpc_dev_pub, "0");
-        sprintf(fanStatus,"%3s", "OFF");
-       }
-       else if(payload[0] =='1'){
-        Serial.println("Fan: ON");
-        digitalWrite(fan, HIGH);
-        fan_Status = true;
-        client.publish(fan_ctrl_tpc_dev_pub,"1");
-        sprintf(fanStatus,"%3s", "ON");
-       }*/
-      
-}
+
 
 // ================================================ LOOP =================================================
 void loop() {
@@ -250,19 +213,55 @@ void loop() {
 
 
   //-------- Your Sketch starts from here ---------------
- client.loop();
 
 
-  if (millis() - printEntry > 5000) {          // Serial.print the example variables every 5 seconds
+ if (millis() - flashtimer > 500) {
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  flashtimer = millis();
+ }  
+// Serial.print the example variables every 5 seconds
+  if (millis() - printEntry > 60000) {          
+      temp = random(10,100);
+      hum = random(100);
     
+   /* HTTPClient http;
+  
+    //http.begin("http://jsonplaceholder.typicode.com/comments?id=10"); //Specify the URL
+    http.begin("http://gwakwani.rf.gd/post-esp-data.php?api_key=tPmAT5Ab3j7F9&sensor=DHT11&location=Gwakwani&value1=27.50&value2=75&value3=956.50");
+    int httpCode = http.GET();                                        //Make the request
+  
+    if (httpCode > 0) { //Check for the returning code
+  
+        String payload = http.getString();
+        Serial.println(httpCode);
+        Serial.println(payload);
+      }
+  
+    else {
+      Serial.println("Error on HTTP request");
+    }
+  
+    http.end(); //Free the resources
+    */
 
-  
-  
+      ThingSpeak.setField(1, temp);
+      ThingSpeak.setField(2, hum);
+      int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
+  if(x == 200){
+    Serial.println("Channel update successful.");
+  }
+  else{
+    Serial.println("Problem updating channel. HTTP error code " + String(x));
+  }
+
+     
+
    //---------------------------
     i = i + 1;
-    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    
     Serial.println(i);
-    //client.publish(displayLogs, String(i));
+    
+   
     printEntry = millis();
   }
 }
