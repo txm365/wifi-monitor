@@ -35,7 +35,7 @@ IOTAppStory IAS(COMPDATE, MODEBUTTON);                      // Initialize IotApp
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include "ThingSpeak.h" // always include thingspeak header file after other header files and custom macros
-
+#include "time.h"
 
 #include "DHT.h"
 
@@ -84,6 +84,17 @@ String sensorLocation = "Gwakwani";
 unsigned long CHANNEL_ID = 2108346;
 const char * CHANNEL_API_KEY = "M9JMDXC9C41N37QX";
 
+//Set time parameters
+int tmz = 1;           // Set timezone
+const char* ntpServer = "pool.ntp.org";
+long  gmtOffset_sec = tmz*3600;            //timezone setting
+const int   daylightOffset_sec = 3600;
+bool res;
+bool timeConfigured = false;
+ int c =0;
+int hours =0;
+int mins = 0;
+int secs = 0;
 
 WiFiClient client;
 HTTPClient http;
@@ -104,7 +115,7 @@ void setup() {
   /* TIP! Delete Wifi cred. when you publish your App. */
 	
 
-  /*IAS.addField(lbl, "textLine", 16);                        // These fields are added to the "App Settings" page in config mode and saved to eeprom. Updated values are returned to the original variable.
+  IAS.addField(lbl, "textLine", 16);                        // These fields are added to the "App Settings" page in config mode and saved to eeprom. Updated values are returned to the original variable.
   IAS.addField(exampleURL, "Textarea", 80, 'T');            // reference to org variable | field label value | max char return | Optional "special field" char
   IAS.addField(nrOf, "Number", 8, 'N');                     // Find out more about the optional "special fields" at https://iotappstory.com/wiki
   
@@ -114,7 +125,7 @@ void setup() {
   IAS.addField(updInt, "Interval", 8, 'I');
   IAS.addField(ledPin, "ledPin", 2, 'P');
   IAS.addField(timeZone, "Timezone", 48, 'Z');
-  */
+  
 
 
   // You can configure callback functions that can give feedback to the app user about the current state of the application.
@@ -198,6 +209,25 @@ void setup() {
         dht.begin();
         //Set LED pin as output
         pinMode(LED_BUILTIN, OUTPUT);
+
+        //NTC Time
+      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+      timeConfigured = true;
+
+     struct tm timeinfo;
+     if(!getLocalTime(&timeinfo)){
+      Serial.println("Time Update Failed! ");
+    }
+    else{
+    hours = timeinfo.tm_hour;
+     mins = timeinfo.tm_min;
+    secs = timeinfo.tm_sec;
+    Serial.println(String(hours)+":"+String(mins)+String(secs));
+    }
+      Serial.println(&timeinfo, "      %H:%M:%S      ");//
+      Serial.println(&timeinfo, "      %A        ");
+      Serial.println(&timeinfo, "  %d %B %Y    ");
+
         //Start ThingSpeak   
        ThingSpeak.begin(client);
         
@@ -226,8 +256,10 @@ void loop() {
 
 
   //-------- Your Sketch starts from here ---------------
-   
-  if (failCount > 10){
+   struct tm timeinfo;
+     
+
+  if (failCount > 5){
      ThingSpeak.setField(5, -1);
 
       int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
@@ -241,8 +273,9 @@ void loop() {
       delay(1000);
     ESP.restart();
   }
+
   if (printEntry > 3600000){
-      ThingSpeak.setField(5, 1);
+      ThingSpeak.setField(5, -1);
 
       int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
       if(x == 200){
@@ -258,10 +291,23 @@ void loop() {
 
  if (millis() - flashtimer > 500) {
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+        c = c+1;
+      if(c%2==0){
+        if(!getLocalTime(&timeinfo)){
+        Serial.println("Time Update Failed! ");
+      }
+      else{
+      hours = timeinfo.tm_hour;
+      mins = timeinfo.tm_min;
+      secs = timeinfo.tm_sec;
+      Serial.println(String(hours)+":"+String(mins)+":"+String(secs));
+      }
+      
+    }
   flashtimer = millis();
  }  
 // Serial.print the example variables every 30 seconds
-  if (millis() - printEntry > 30000) {          
+  if (millis() - printEntry > 60000) {          
     
      i = i + 1;
     Serial.println(i);
@@ -287,7 +333,7 @@ void loop() {
       }
       else{
         Serial.println("Problem updating channel. HTTP error code " + String(x));
-        failCount = failCount +1;
+        failCount = failCount + 1;
       }
     /*
       //http.begin("http://jsonplaceholder.typicode.com/comments?id=10"); //Specify the URL
@@ -310,8 +356,10 @@ void loop() {
     */
 
   }
-
-   
+/*
+   Serial.println(&timeinfo, "      %H:%M:%S      ");//
+   Serial.println(&timeinfo, "      %A        ");
+   Serial.println(&timeinfo, "  %d %B %Y    ");*/
     printEntry = millis();
   }
 }
