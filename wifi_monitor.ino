@@ -64,7 +64,7 @@ char* nrOf        = "6";
 char* doSomething = "1";
 char* chosen      = "0";
 
-char* updInt      = "60";
+char* updInt      = "3600";
 char* ledPin      = "2";
 char* timeZone    = "Pretoria";
 
@@ -72,6 +72,7 @@ unsigned long flashtimer = 0;
 int i = 0;
 int temp = 0;
 int hum = 0;
+int failCount = 0;
 const char* serverName = "http://gwakwani.rf.gd/post-esp-data.php?";
 // Keep this API Key value to be compatible with the PHP code provided in the project page. 
 // If you change the apiKeyValue value, the PHP file /post-esp-data.php also needs to have the same key 
@@ -85,7 +86,7 @@ const char * CHANNEL_API_KEY = "M9JMDXC9C41N37QX";
 
 
 WiFiClient client;
-
+HTTPClient http;
 
 // ================================================ SETUP ================================================
 void setup() {
@@ -136,7 +137,7 @@ void setup() {
   });
 
   IAS.onFirmwareUpdateProgress([](int written, int total){
-   // pinMode(LED_BUILTIN, OUTPUT);
+   
       Serial.print(".");
       
       
@@ -193,13 +194,25 @@ void setup() {
 
 
   //-------- Your Setup starts from here ---------------
-    //dht.begin();
+        //start the dht sensor
+        dht.begin();
+        //Set LED pin as output
         pinMode(LED_BUILTIN, OUTPUT);
-    
         //Start ThingSpeak   
        ThingSpeak.begin(client);
-        //Initialise random seed
-      randomSeed(analogRead(16));
+        
+        ThingSpeak.setField(5, 1);
+      int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
+      if(x == 200){
+        Serial.println("Reboot Recovery... \nPing successfuly sent to dashboard!");
+        
+      }
+      else{
+         Serial.println("Reboot Recovery... \nPing failed to be sent to dashboard!");
+      }
+      delay(1000);
+    
+    
 }
 
 
@@ -213,21 +226,73 @@ void loop() {
 
 
   //-------- Your Sketch starts from here ---------------
+   
+  if (failCount > 10){
+     ThingSpeak.setField(5, -1);
 
+      int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
+      if(x == 200){
+        Serial.println("Update failure Restart in progress... ");
+        
+      }
+      else{
+         Serial.println("Update failure Restart in progress... ");
+      }
+      delay(1000);
+    ESP.restart();
+  }
+  if (printEntry > 3600000){
+      ThingSpeak.setField(5, 1);
+
+      int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
+      if(x == 200){
+        Serial.println("Regular Restart in progress... ");
+        
+      }
+      else{
+         Serial.println("Regular Restart in progress... ");
+      }
+      delay(1000);
+      ESP.restart();
+  }
 
  if (millis() - flashtimer > 500) {
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   flashtimer = millis();
  }  
-// Serial.print the example variables every 5 seconds
-  if (millis() - printEntry > 60000) {          
-      temp = random(10,100);
-      hum = random(100);
+// Serial.print the example variables every 30 seconds
+  if (millis() - printEntry > 30000) {          
     
-   /* HTTPClient http;
-  
-    //http.begin("http://jsonplaceholder.typicode.com/comments?id=10"); //Specify the URL
-    http.begin("http://gwakwani.rf.gd/post-esp-data.php?api_key=tPmAT5Ab3j7F9&sensor=DHT11&location=Gwakwani&value1=27.50&value2=75&value3=956.50");
+     i = i + 1;
+    Serial.println(i);
+
+    float hum = dht.readHumidity();
+    float temp = dht.readTemperature();
+
+    // Check if any reads failed and exit early (to try again).
+  if (isnan(hum) || isnan(temp) ) {
+    Serial.println(F("Failed to read from DHT sensor!"));
+    //return;
+  }
+  else {
+      ThingSpeak.setField(1, temp);
+      ThingSpeak.setField(2, hum);
+
+      Serial.println(String(temp)+" °C");
+      Serial.println(String(hum)+" %");
+      int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
+      if(x == 200){
+        Serial.println("Channel update successful.");
+        failCount = 0;
+      }
+      else{
+        Serial.println("Problem updating channel. HTTP error code " + String(x));
+        failCount = failCount +1;
+      }
+    /*
+      //http.begin("http://jsonplaceholder.typicode.com/comments?id=10"); //Specify the URL
+    //http.begin("http://gwakwani.rf.gd/post-esp-data.php?api_key=tPmAT5Ab3j7F9&sensor=DHT11&location=Gwakwani&value1=27.50&value2=75&value3=956.50");
+    http.begin("http://localhost/post-esp-data.php?api_key=tPmAT5Ab3j7F9&sensor=DHT11&location=Gwakwani&value1=String(temp)&value2=String(hum)&value3=956.50");
     int httpCode = http.GET();                                        //Make the request
   
     if (httpCode > 0) { //Check for the returning code
@@ -244,23 +309,8 @@ void loop() {
     http.end(); //Free the resources
     */
 
-      ThingSpeak.setField(1, temp);
-      ThingSpeak.setField(2, hum);
-      int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
-  if(x == 200){
-    Serial.println("Channel update successful.");
-  }
-  else{
-    Serial.println("Problem updating channel. HTTP error code " + String(x));
   }
 
-     
-
-   //---------------------------
-    i = i + 1;
-    
-    Serial.println(i);
-    
    
     printEntry = millis();
   }
