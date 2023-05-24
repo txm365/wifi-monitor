@@ -259,22 +259,9 @@ void loop() {
    struct tm timeinfo;
      
 
-  if (failCount > 5){
-     ThingSpeak.setField(5, -1);
+  
 
-      int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
-      if(x == 200){
-        Serial.println("Update failure Restart in progress... ");
-        
-      }
-      else{
-         Serial.println("Update failure Restart in progress... ");
-      }
-      delay(1000);
-    ESP.restart();
-  }
-
-  if (printEntry > 3600000){
+  if (i > 60){
       ThingSpeak.setField(5, -1);
 
       int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
@@ -291,7 +278,7 @@ void loop() {
 
  if (millis() - flashtimer > 500) {
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-        c = c+1;
+      /*  c = c+1;
       if(c%2==0){
         if(!getLocalTime(&timeinfo)){
         Serial.println("Time Update Failed! ");
@@ -303,14 +290,32 @@ void loop() {
       Serial.println(String(hours)+":"+String(mins)+":"+String(secs));
       }
       
-    }
+    }*/
   flashtimer = millis();
  }  
-// Serial.print the example variables every 30 seconds
-  if (millis() - printEntry > 60000) {          
+
+  if (millis() - printEntry > 60000) {  
+
+    Serial.println("------------------------Update Start---------------------------------");        
     
      i = i + 1;
-    Serial.println(i);
+    //Serial.println(i);
+    
+     if(!getLocalTime(&timeinfo)){
+      Serial.println("Time Update Failed! ");
+    }
+    else{
+    hours = timeinfo.tm_hour;
+     mins = timeinfo.tm_min;
+    secs = timeinfo.tm_sec;
+    Serial.println("Update Time:");
+    Serial.println(String(hours)+":"+String(mins)+":"+String(secs));
+
+     Serial.println(&timeinfo, "%H:%M:%S");//
+     Serial.println(&timeinfo, "%A        ");
+     Serial.println(&timeinfo, "%d %B %Y");
+    }
+     
 
     float hum = dht.readHumidity();
     float temp = dht.readTemperature();
@@ -321,6 +326,8 @@ void loop() {
     //return;
   }
   else {
+
+    Serial.println("\nSensor Data:");
       ThingSpeak.setField(1, temp);
       ThingSpeak.setField(2, hum);
 
@@ -334,32 +341,24 @@ void loop() {
       else{
         Serial.println("Problem updating channel. HTTP error code " + String(x));
         failCount = failCount + 1;
-      }
-    /*
-      //http.begin("http://jsonplaceholder.typicode.com/comments?id=10"); //Specify the URL
-    //http.begin("http://gwakwani.rf.gd/post-esp-data.php?api_key=tPmAT5Ab3j7F9&sensor=DHT11&location=Gwakwani&value1=27.50&value2=75&value3=956.50");
-    http.begin("http://localhost/post-esp-data.php?api_key=tPmAT5Ab3j7F9&sensor=DHT11&location=Gwakwani&value1=String(temp)&value2=String(hum)&value3=956.50");
-    int httpCode = http.GET();                                        //Make the request
-  
-    if (httpCode > 0) { //Check for the returning code
-  
-        String payload = http.getString();
-        Serial.println(httpCode);
-        Serial.println(payload);
-      }
-  
-    else {
-      Serial.println("Error on HTTP request");
-    }
-  
-    http.end(); //Free the resources
-    */
 
-  }
-/*
-   Serial.println(&timeinfo, "      %H:%M:%S      ");//
-   Serial.println(&timeinfo, "      %A        ");
-   Serial.println(&timeinfo, "  %d %B %Y    ");*/
+        if (failCount > 3){
+              ThingSpeak.setField(5, -1);
+
+                int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
+                if(x == 200){
+                  Serial.println("Update failure Restart in progress... ");
+                  
+                }
+                else{
+                  Serial.println("Update failure Restart in progress... ");
+                }
+                delay(1000);
+              ESP.restart();
+        }
+      }
+   }
+   Serial.println("-------------------------Update End--------------------------------");
     printEntry = millis();
   }
 }
