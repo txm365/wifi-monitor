@@ -96,6 +96,15 @@ int hours =0;
 int mins = 0;
 int secs = 0;
 
+float bat_sample[60];
+float voltage;
+int sensorValue;
+ int s_max = 120;
+float volts,vol;
+float ave_volts;
+int s = 0;
+int bat_percentage = 0;
+
 WiFiClient client;
 HTTPClient http;
 
@@ -115,16 +124,16 @@ void setup() {
   /* TIP! Delete Wifi cred. when you publish your App. */
 	
 
-  IAS.addField(lbl, "textLine", 16);                        // These fields are added to the "App Settings" page in config mode and saved to eeprom. Updated values are returned to the original variable.
-  IAS.addField(exampleURL, "Textarea", 80, 'T');            // reference to org variable | field label value | max char return | Optional "special field" char
-  IAS.addField(nrOf, "Number", 8, 'N');                     // Find out more about the optional "special fields" at https://iotappstory.com/wiki
+  // IAS.addField(lbl, "textLine", 16);                        // These fields are added to the "App Settings" page in config mode and saved to eeprom. Updated values are returned to the original variable.
+  // IAS.addField(exampleURL, "Textarea", 80, 'T');            // reference to org variable | field label value | max char return | Optional "special field" char
+  // IAS.addField(nrOf, "Number", 8, 'N');                     // Find out more about the optional "special fields" at https://iotappstory.com/wiki
   
-  IAS.addField(doSomething, "Checkbox:Check me", 1, 'C');
-  IAS.addField(chosen, "Selectbox:Red,Green,Blue", 1, 'S');
+  // IAS.addField(doSomething, "Checkbox:Check me", 1, 'C');
+  // IAS.addField(chosen, "Selectbox:Red,Green,Blue", 1, 'S');
 
-  IAS.addField(updInt, "Interval", 8, 'I');
-  IAS.addField(ledPin, "ledPin", 2, 'P');
-  IAS.addField(timeZone, "Timezone", 48, 'Z');
+  // IAS.addField(updInt, "Interval", 8, 'I');
+  // IAS.addField(ledPin, "ledPin", 2, 'P');
+  // IAS.addField(timeZone, "Timezone", 48, 'Z');
   
 
 
@@ -205,6 +214,8 @@ void setup() {
 
 
   //-------- Your Setup starts from here ---------------
+
+        pinMode(35, INPUT); //It is necessary to declare the input pin
         //start the dht sensor
         dht.begin();
         //Set LED pin as output
@@ -219,14 +230,11 @@ void setup() {
       Serial.println("Time Update Failed! ");
     }
     else{
-    hours = timeinfo.tm_hour;
-     mins = timeinfo.tm_min;
-    secs = timeinfo.tm_sec;
-    Serial.println(String(hours)+":"+String(mins)+String(secs));
+      Serial.println(&timeinfo, "%H:%M:%S ");//
+      Serial.println(&timeinfo, "%A ");
+      Serial.println(&timeinfo, "%d %B %Y ");
     }
-      Serial.println(&timeinfo, "      %H:%M:%S      ");//
-      Serial.println(&timeinfo, "      %A        ");
-      Serial.println(&timeinfo, "  %d %B %Y    ");
+
 
         //Start ThingSpeak   
        ThingSpeak.begin(client);
@@ -241,8 +249,7 @@ void setup() {
          Serial.println("Reboot Recovery... \nPing failed to be sent to dashboard!");
       }
       delay(1000);
-    
-    
+       
 }
 
 
@@ -257,11 +264,8 @@ void loop() {
 
   //-------- Your Sketch starts from here ---------------
    struct tm timeinfo;
-     
-
-  
-
-  if (i > 60){
+//
+  if (millis()>86400000){ //reset after 24 hours
       ThingSpeak.setField(5, -1);
 
       int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
@@ -278,17 +282,18 @@ void loop() {
 
  if (millis() - flashtimer > 500) {
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+
+     
+
       /*  c = c+1;
       if(c%2==0){
-        if(!getLocalTime(&timeinfo)){
-        Serial.println("Time Update Failed! ");
-      }
-      else{
-      hours = timeinfo.tm_hour;
-      mins = timeinfo.tm_min;
-      secs = timeinfo.tm_sec;
-      Serial.println(String(hours)+":"+String(mins)+":"+String(secs));
-      }
+        int sensorValue = analogRead(35);
+        float voltage = (((sensorValue * 3.3) / 4096)); 
+        int bat_percentage = mapfloat(voltage, 1.9, 3.3, 0, 100); //2.8V as Battery Cut off Voltage & 4.2V as Maximum Voltage
+        Serial.println("\nBattery Status:");
+        Serial.println("ADC Value: " +String(sensorValue));
+        Serial.println("Voltage: "+ String(voltage) + " V");
+        Serial.println("Battery percentage:" + String(bat_percentage)+ " %\n");
       
     }*/
   flashtimer = millis();
@@ -299,7 +304,7 @@ void loop() {
     Serial.println("------------------------Update Start---------------------------------");        
     
      i = i + 1;
-    //Serial.println(i);
+    Serial.println("Update number: "+String(i));
     
      if(!getLocalTime(&timeinfo)){
       Serial.println("Time Update Failed! ");
@@ -311,7 +316,7 @@ void loop() {
     Serial.println("Update Time:");
     Serial.println(String(hours)+":"+String(mins)+":"+String(secs));
 
-     Serial.println(&timeinfo, "%H:%M:%S");//
+    // Serial.println(&timeinfo, "%H:%M:%S");//
      Serial.println(&timeinfo, "%A        ");
      Serial.println(&timeinfo, "%d %B %Y");
     }
@@ -333,6 +338,18 @@ void loop() {
 
       Serial.println(String(temp)+" °C");
       Serial.println(String(hum)+" %");
+
+
+      sensorValue = analogRead(35);
+      voltage = (((sensorValue * 3.3) / 4096)+0.9);
+      bat_percentage = mapfloat(voltage, 2.8, 4.2, 0, 100); //2.8V as Battery Cut off Voltage & 4.2V as Maximum Voltage
+      
+        Serial.println("\nBattery Status:");
+        ThingSpeak.setField(3, voltage);
+        ThingSpeak.setField(4, bat_percentage);
+        Serial.println("Voltage: "+ String(voltage) + " V");
+        Serial.println("Battery percentage:" + String(bat_percentage)+ " %\n");
+
       int x = ThingSpeak.writeFields(CHANNEL_ID, CHANNEL_API_KEY);
       if(x == 200){
         Serial.println("Channel update successful.");
@@ -358,7 +375,21 @@ void loop() {
         }
       }
    }
+      /*  int sensorValue = analogRead(35);
+        float voltage = (((sensorValue * 3.3) / 4096)); 
+        int bat_percentage = mapfloat(voltage, 1.9, 3.3, 0, 100); //2.8V as Battery Cut off Voltage & 4.2V as Maximum Voltage
+        Serial.println("\nBattery Status:");
+        Serial.println("ADC Value: " +String(sensorValue));
+        Serial.println("Voltage: "+ String(voltage) + " V");
+        Serial.println("Battery percentage:" + String(bat_percentage)+ " %\n");
+      */
+      
    Serial.println("-------------------------Update End--------------------------------");
     printEntry = millis();
   }
+}
+
+float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
